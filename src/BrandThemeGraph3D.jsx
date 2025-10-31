@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ForceGraph3D from '3d-force-graph';
 import * as THREE from 'three';
-import data from './data.json'; // ✅ Correct relative path
+import data from './data.json';
 
 const brandColors = {
   'EltaMD': '#f59e0b',
@@ -13,14 +13,13 @@ const brandColors = {
 
 const BrandThemeGraph3D = () => {
   const containerRef = useRef(null);
-  const graphRef = useRef(null); // store graph instance
+  const graphRef = useRef(null);
   const [stats, setStats] = useState({ reviews: 0, products: 0, themes: 0 });
 
   useEffect(() => {
-    const maxRows = 2000; // load only 100 rows
-const sampleData = (Array.isArray(data) ? data : data.default).slice(0, maxRows);
-console.log('Loaded JSON records:', sampleData.length);
-
+    const maxRows = 2000;
+    const sampleData = (Array.isArray(data) ? data : data.default).slice(0, maxRows);
+    console.log('Loaded JSON records:', sampleData.length);
 
     // -------------------------
     // 1️⃣ NODE / LINK CREATION
@@ -104,7 +103,7 @@ console.log('Loaded JSON records:', sampleData.length);
         sentiment === 'positive' ? '#22c55e' :
         sentiment === 'negative' ? '#ef4444' : '#64748b';
       const sentimentNodeId = `${productId}_sentiment_${sentiment}_${idx}`;
-      addNode(sentimentNodeId, `Overall: ${sentiment}`, 'sentiment', sentimentColor, productId);
+      addNode(sentimentNodeId, `Overall: ${sentiment}`, 'sentiment', sentimentColor, productId, sentiment);
       links.push({ source: productId, target: sentimentNodeId });
     });
 
@@ -134,16 +133,53 @@ console.log('Loaded JSON records:', sampleData.length);
     const Graph = ForceGraph3D()(elem)
       .graphData(graphData)
       .nodeAutoColorBy('type')
-      .nodeLabel(node => `${node.label}\nType: ${node.type}`)
+      .nodeLabel(node => {
+  const matchedData = sampleData.find(record => {
+    if (!node.parent) return false;
+    const [brand, sku] = (node.parent || '').split('_');
+    return record.Brand === brand && record.SKU === sku;
+  });
+
+  let html = `<div style="font-size:12px; line-height:1.4; color:#fff;">`;
+  html += `<strong>${node.label}</strong><br>`;
+  html += `<span style="opacity:0.8;">Type:</span> ${node.type}<br>`;
+
+  if (node.parent) {
+    const parentNode = nodes.find(n => n.id === node.parent);
+    if (parentNode && parentNode.type === 'product') {
+      html += `<span style="opacity:0.8;">Product:</span> ${parentNode.label}<br>`;
+    }
+  }
+
+  if (matchedData) {
+    if (matchedData.Text)
+      html += `<span style="opacity:0.8;">Review Text:</span> ${matchedData.Text}<br>`;
+    if (matchedData.Stars)
+      html += `<span style="opacity:0.8;">Rating:</span> ${matchedData.Stars} stars<br>`;
+    if (matchedData.Sentiment)
+      html += `<span style="opacity:0.8;">Sentiment:</span> ${matchedData.Sentiment}<br>`;
+  }
+
+  if (node.parent) {
+    const parentNode = nodes.find(n => n.id === node.parent);
+    if (parentNode && parentNode.type === 'theme') {
+      html += `<span style="opacity:0.8;">Parent:</span> ${parentNode.label}`;
+    }
+  }
+
+  html += `</div>`;
+  return html;
+})
+
       .nodeThreeObject(node => {
         const material = new THREE.MeshBasicMaterial({ color: node.color });
         const mesh = new THREE.Mesh(geometries[node.type], material);
-        node.__threeObj = mesh; // store for cleanup
+        node.__threeObj = mesh;
         return mesh;
       })
       .linkColor(() => 'rgba(255,255,255,0.3)')
       .linkOpacity(0.3)
-      .linkDirectionalParticles(0) // ✅ disable particles for performance
+      .linkDirectionalParticles(0)
       .backgroundColor('#0f172a')
       .onNodeClick(node => {
         const info = `Node: ${node.label}\nType: ${node.type}${node.sentiment ? `\nSentiment: ${node.sentiment}` : ''}`;
@@ -158,13 +194,16 @@ console.log('Loaded JSON records:', sampleData.length);
     // -------------------------
     return () => {
       if (graphRef.current) {
-        graphRef.current._destructor(); // clean internal Three.js objects
+        graphRef.current._destructor();
         graphRef.current = null;
       }
-      // Dispose all geometries and materials
+      // Dispose geometries
+      Object.values(geometries).forEach(geometry => {
+        geometry.dispose();
+      });
+      // Dispose materials
       nodes.forEach(node => {
-        if (node.__threeObj) {
-          node.__threeObj.geometry.dispose();
+        if (node.__threeObj && node.__threeObj.material) {
           node.__threeObj.material.dispose();
         }
       });
@@ -175,11 +214,63 @@ console.log('Loaded JSON records:', sampleData.length);
   return (
     <div className="w-full h-screen bg-slate-900 relative">
       <div ref={containerRef} className="w-full h-full" />
+      
       {/* overlay stats panel */}
       <div className="absolute top-2 left-2 text-white p-2 bg-slate-800/70 rounded">
         <div>Reviews: {stats.reviews}</div>
         <div>Products: {stats.products}</div>
         <div>Themes: {stats.themes}</div>
+      </div>
+
+      {/* legend panel */}
+      <div className="absolute top-2 right-2 text-white p-3 bg-slate-800/90 rounded text-sm max-w-xs z-50 shadow-lg">
+        <div className="font-bold mb-3 text-base">Legend</div>
+        
+        <div className="mb-3">
+          <div className="text-xs text-slate-300 mb-2 font-semibold">Node Types</div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-4 h-4 rounded-full bg-slate-400"></div>
+            <span className="text-xs">Brand (Large)</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-3 h-3 rounded-full bg-slate-400"></div>
+            <span className="text-xs">Product (Medium)</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-purple-500"></div>
+            <span className="text-xs">Theme (Small)</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+            <span className="text-xs">Subtheme (Tiny)</span>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <div className="text-xs text-slate-300 mb-2 font-semibold">Sentiment</div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+            <span className="text-xs">Positive</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+            <span className="text-xs">Negative</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
+            <span className="text-xs">Neutral</span>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-600">
+          <div className="text-xs text-slate-300 mb-2 font-semibold">Brands</div>
+          {Object.entries(brandColors).map(([brand, color]) => (
+            <div key={brand} className="flex items-center gap-2 mb-1.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: color}}></div>
+              <span className="text-xs">{brand}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
