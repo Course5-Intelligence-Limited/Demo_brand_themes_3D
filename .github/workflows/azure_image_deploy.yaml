@@ -35,9 +35,9 @@ jobs:
       # Build the Docker image
       - name: Build Docker Image
         run: |
-          docker build -t mapregistry.azurecr.io/c5i_Demobrandthemes:latest .
+          docker build -t mapregistry.azurecr.io/c5i_demobrandthemes:latest .
 
       # Push the Docker image to ACR
       - name: Push Docker Image to ACR
         run: |
-          docker push mapregistry.azurecr.io/c5i_Demobrandthemes:latest
+          docker push mapregistry.azurecr.io/c5i_demobrandthemes:latest
