@@ -2,7 +2,6 @@
 FROM node:20.19
 
 WORKDIR /usr/src/app
-
 # Copy package.json and lock files first (for better caching)
 COPY package*.json ./
 
