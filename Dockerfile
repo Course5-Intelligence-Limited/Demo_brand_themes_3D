@@ -2,23 +2,24 @@
 FROM node:20.19
 
 WORKDIR /usr/src/app
-# Copy package.json and lock files first (for better caching)
+
+# Copy dependency files
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install --legacy-peer-deps
 
-# Copy rest of the source code
+# Copy the rest of the source code
 COPY . .
 
-# Build the Vite app
+# Build the React app (output goes to /build)
 RUN npm run build
 
-# Install serve
+# Install 'serve' to serve static files
 RUN npm install -g serve
 
-# Azure will set PORT dynamically
+# Azure will inject PORT automatically
 EXPOSE 3000
 
-CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:3000"]
-
+# Serve the React build folder
+CMD ["serve", "-s", "build", "-l", "tcp://0.0.0.0:3000"]
